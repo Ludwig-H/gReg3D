@@ -1,7 +1,18 @@
-cmake_minimum_required(VERSION 2.8)
-find_package(CUDA QUIET REQUIRED)
+cmake_minimum_required(VERSION 3.18)
+project(greg3d LANGUAGES C CXX CUDA)
+
+find_package(CUDAToolkit REQUIRED)
+
 set(CMAKE_BUILD_TYPE Release)
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -gencode arch=compute_35,code=sm_35)
+
+# Enable C++14 for both host and device code
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+# Build for a modern architecture (sm_70 and newer are supported by recent CUDA)
+set(CMAKE_CUDA_ARCHITECTURES 70)
 include_directories(
     GDelaunay/Common
     GDelaunay/GDelaunay
@@ -38,7 +49,5 @@ set(GREG3D_SOURCE_FILES
     GDelaunay/PBA/Pba.cu
     GDelaunay/PBA/Pba.h
     )
-cuda_add_executable(
-    greg3d
-    ${GREG3D_SOURCE_FILES}
-    )
+add_executable(greg3d ${GREG3D_SOURCE_FILES})
+target_link_libraries(greg3d PRIVATE CUDA::cudart)

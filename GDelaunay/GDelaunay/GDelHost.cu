@@ -44,6 +44,8 @@ DAMAGE.
 #include "GDelInternal.h"
 #include "GDelKernels.h"
 
+#include <thrust/tuple.h>
+
 using namespace std;
 
 const int ThreadsPerBlock   = MAX_THREADS_PER_BLOCK;
@@ -182,7 +184,9 @@ public:
                 containerTimer.start(); 
             }
 
-            _ptr = thrust::device_malloc< T >( _capacity );
+            T* raw = nullptr;
+            CudaSafeCall( cudaMalloc( &raw, _capacity * sizeof( T ) ) );
+            _ptr = thrust::device_pointer_cast( raw );
 
             if ( LogMemory )
             {
@@ -1477,9 +1481,9 @@ int __makeFacetList()
 
     if ( facetNum > ThreadNum )
         thrust::sort_by_key(    DFacetData._vertStarVec->begin(),  DFacetData._vertStarVec->end(),
-                                thrust::make_zip_iterator( make_tuple(  DFacetData._fromStarVec->begin(),
-                                                                        DFacetData._fromTriVec->begin(),
-                                                                        DFacetData._segVec->begin() ) ) );
+                                thrust::make_zip_iterator( thrust::make_tuple(  DFacetData._fromStarVec->begin(),
+                                                                                DFacetData._fromTriVec->begin(),
+                                                                                DFacetData._segVec->begin() ) ) );
 
     return facetNum;
 }
