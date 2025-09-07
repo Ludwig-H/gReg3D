@@ -30,7 +30,6 @@ DAMAGE.
 
 */
 
-#include <device_functions.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
 #include <fstream>
@@ -45,18 +44,18 @@ using namespace std;
 #define BLOCKY      4
 #define BLOCKXY     16
 
-#define INFINITY    0x3ff
+#define PBA_INFINITY    0x3ff
 
 /****** Global Variables *******/
-int **pbaTextures;   
+int **pbaTextures;
 
-int pbaMemSize; 
-int pbaCurrentBuffer; 
-int pbaTexSize;  
+int pbaMemSize;
+int pbaCurrentBuffer;
+int pbaTexSize;
 
-texture<int> pbaTexColor; 
-texture<int> pbaTexLinks; 
-texture<short> pbaTexPointer; 
+__device__ int* pbaTexColor;
+__device__ int* pbaTexLinks;
+__device__ short* pbaTexPointer;
 
 /********* Kernels ********/
 #include "pba3DKernel.h"
@@ -119,9 +118,9 @@ void pba3DColorZAxis(int m1)
     dim3 block = dim3(BLOCKX, BLOCKY); 
     dim3 grid = dim3((pbaTexSize / block.x) * m1, pbaTexSize / block.y); 
 
-    CudaSafeCall( cudaBindTexture(0, pbaTexColor, pbaTextures[pbaCurrentBuffer]) ); 
+    CudaSafeCall( cudaMemcpyToSymbol(pbaTexColor, &pbaTextures[pbaCurrentBuffer], sizeof(int*)) );
 
-    kernelFloodZ<<< grid, block >>>(pbaTextures[1 - pbaCurrentBuffer], pbaTexSize, pbaTexSize / block.x, pbaTexSize / m1); 
+    kernelFloodZ<<< grid, block >>>(pbaTextures[1 - pbaCurrentBuffer], pbaTexSize, pbaTexSize / block.x, pbaTexSize / m1);
     CudaCheckError();
 
     pbaCurrentBuffer = 1 - pbaCurrentBuffer; 
@@ -129,12 +128,12 @@ void pba3DColorZAxis(int m1)
     if (m1 > 1)
     {
         // Passing information between bands
-        CudaSafeCall( cudaBindTexture(0, pbaTexColor, pbaTextures[pbaCurrentBuffer]) ); 
+        CudaSafeCall( cudaMemcpyToSymbol(pbaTexColor, &pbaTextures[pbaCurrentBuffer], sizeof(int*)) );
 
         kernelPropagateInterband<<< grid, block >>>(pbaTextures[1 - pbaCurrentBuffer], pbaTexSize, pbaTexSize / block.x, pbaTexSize / m1); 
         CudaCheckError();
 
-        CudaSafeCall( cudaBindTexture(0, pbaTexLinks, pbaTextures[1 - pbaCurrentBuffer]) ); 
+        CudaSafeCall( cudaMemcpyToSymbol(pbaTexLinks, &pbaTextures[1 - pbaCurrentBuffer], sizeof(int*)) );
 
         kernelUpdateVertical<<< grid, block >>>(pbaTextures[pbaCurrentBuffer], pbaTexSize, pbaTexSize / block.x, pbaTexSize / m1); 
         CudaCheckError();
@@ -152,18 +151,18 @@ void pba3DComputeProximatePointsYAxis(int m2)
     dim3 grid = dim3((pbaTexSize / block.x) * m2, pbaTexSize / block.y); 
 
     // Compute proximate points locally in each band
-    CudaSafeCall( cudaBindTexture(0, pbaTexColor, pbaTextures[pbaCurrentBuffer]) ); 
+    CudaSafeCall( cudaMemcpyToSymbol(pbaTexColor, &pbaTextures[pbaCurrentBuffer], sizeof(int*)) );
 
-    kernelMaurerAxis<<< grid, block >>>(pbaTextures[iStack], pbaTexSize, pbaTexSize / block.x, pbaTexSize / m2); 
+    kernelMaurerAxis<<< grid, block >>>(pbaTextures[iStack], pbaTexSize, pbaTexSize / block.x, pbaTexSize / m2);
     CudaCheckError();
 
     // Construct forward pointers
-    CudaSafeCall( cudaBindTexture(0, pbaTexLinks, pbaTextures[iStack]) ); 
+    CudaSafeCall( cudaMemcpyToSymbol(pbaTexLinks, &pbaTextures[iStack], sizeof(int*)) );
 
     kernelCreateForwardPointers<<< grid, block >>>((short *) pbaTextures[iForward], pbaTexSize, pbaTexSize / block.x, pbaTexSize / m2); 
     CudaCheckError();
 
-    CudaSafeCall( cudaBindTexture(0, pbaTexPointer, pbaTextures[iForward], pbaTexSize * pbaTexSize * pbaTexSize * sizeof( short ) ) ); 
+    CudaSafeCall( cudaMemcpyToSymbol(pbaTexPointer, &pbaTextures[iForward], sizeof(short*)) );
 
     // Repeatly merging two bands into one
     for (int noBand = m2; noBand > 1; noBand /= 2)
@@ -174,9 +173,7 @@ void pba3DComputeProximatePointsYAxis(int m2)
         CudaCheckError();
     }
 
-    CudaSafeCall( cudaUnbindTexture(pbaTexLinks) ); 
-    CudaSafeCall( cudaUnbindTexture(pbaTexColor) ); 
-    CudaSafeCall( cudaUnbindTexture(pbaTexPointer) ); 
+    // No texture unbinding required with direct pointers
 }
 
 // Phase 3 of PBA. m3 must divides texture size
@@ -186,12 +183,12 @@ void pba3DColorYAxis(int m3)
     dim3 block = dim3(BLOCKX, m3); 
     dim3 grid = dim3(pbaTexSize / block.x, pbaTexSize); 
 
-    CudaSafeCall( cudaBindTexture(0, pbaTexColor, pbaTextures[1 - pbaCurrentBuffer] ) ); 
+    CudaSafeCall( cudaMemcpyToSymbol(pbaTexColor, &pbaTextures[1 - pbaCurrentBuffer], sizeof(int*)) );
 
     kernelColorAxis<<< grid, block >>>(pbaTextures[pbaCurrentBuffer], pbaTexSize); 
     CudaCheckError();
 
-    CudaSafeCall( cudaUnbindTexture(pbaTexColor) ); 
+    // No texture unbinding required with direct pointers
 
     return;
 }
