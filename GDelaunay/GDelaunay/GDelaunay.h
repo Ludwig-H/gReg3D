@@ -36,6 +36,10 @@ DAMAGE.
 
 #pragma once
 
+// Project headers
+#include "Config.h"
+#include "Geometry.h"
+
 void gdelInit( const Config&, const Point3HVec&, const WeightHVec& );
 void gdelDeInit();
 void gdelCompute( double&, double&, double&, double& );
