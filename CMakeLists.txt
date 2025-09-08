@@ -51,3 +51,9 @@ set(GREG3D_SOURCE_FILES
     )
 add_executable(greg3d ${GREG3D_SOURCE_FILES})
 target_link_libraries(greg3d PRIVATE CUDA::cudart)
+
+set(EDGES_SOURCE_FILES ${GREG3D_SOURCE_FILES})
+list(REMOVE_ITEM EDGES_SOURCE_FILES GDelaunay/Main/Main.cpp)
+list(APPEND EDGES_SOURCE_FILES GDelaunay/Main/EdgesWeightedDelaunay3D.cpp)
+add_executable(EdgesWeightedDelaunay3D ${EDGES_SOURCE_FILES})
+target_link_libraries(EdgesWeightedDelaunay3D PRIVATE CUDA::cudart)
